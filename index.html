@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IT Asset Dashboard</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0d1117;color:#e2e8f0;font-family:Segoe UI,system-ui,sans-serif;padding:0;min-height:100vh}
+.page-wrap{max-width:1180px;margin:0 auto;padding:32px 28px 80px}
+h1{font-size:1.6rem;font-weight:800;background:linear-gradient(135deg,#4f8ef7,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px}
+.sub{color:#64748b;font-size:.85rem;margin-bottom:24px}
+
+/* upload grid */
+.grid{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:24px;justify-content:center}
+.card{flex:0 0 calc(33.333% - 10px);min-width:220px;max-width:320px}
+@media(max-width:800px){.card{flex:0 0 calc(50% - 8px)}}
+@media(max-width:500px){.card{flex:0 0 100%;max-width:100%}}
+.card{background:#161b27;border:2px dashed #2a3050;border-radius:12px;padding:16px;transition:.2s}
+.card.loaded{border-style:solid}
+.card.m.loaded{border-color:#4f8ef7}
+.card.p.loaded{border-color:#f59e0b}
+.card.a.loaded{border-color:#22c55e}
+.card.b.loaded{border-color:#a855f7}
+.card.f.loaded{border-color:#ef4444}
+.card.x.loaded{border-color:#f59e0b}
+.card.drag{background:#1e2436;border-color:#4f8ef7;border-style:solid}
+.card-icon{font-size:1.8rem;margin-bottom:6px}
+.card-title{font-weight:700;font-size:.9rem;margin-bottom:4px}
+.card-cols{color:#64748b;font-size:.72rem;line-height:1.5;margin-bottom:10px}
+.card-cols b{color:#94a3b8}
+
+/* upload button - pure label trick */
+.up-btn{display:inline-block;padding:6px 14px;background:#1e2436;border:1px solid #2a3050;
+  border-radius:8px;color:#4f8ef7;font-size:.78rem;font-weight:600;cursor:pointer;user-select:none}
+.up-btn:hover{border-color:#4f8ef7}
+
+.file-strip{display:none;margin-top:8px;background:#1e2436;border:1px solid #2a3050;
+  border-radius:8px;padding:6px 10px;font-size:.75rem;align-items:center;gap:6px}
+.file-strip.on{display:flex}
+.file-strip .fn{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.file-strip .fr{color:#64748b;flex-shrink:0}
+.file-strip .fx{background:none;border:none;color:#64748b;cursor:pointer;font-size:.9rem;flex-shrink:0;padding:0 3px}
+.file-strip .fx:hover{color:#ef4444}
+.card-err{color:#ef4444;font-size:.72rem;margin-top:6px;display:none}
+.card-err.on{display:block}
+
+/* search */
+.search-box{background:#161b27;border:1px solid #2a3050;border-radius:12px;padding:20px;margin-bottom:24px}
+.search-box h2{color:#4f8ef7;font-size:.95rem;font-weight:700;margin-bottom:4px}
+.search-hint{color:#64748b;font-size:.76rem;margin-bottom:12px}
+.srow{display:flex;gap:8px;flex-wrap:wrap}
+.srow input{flex:1;min-width:200px;background:#1e2436;border:1.5px solid #2a3050;color:#e2e8f0;
+  border-radius:10px;padding:10px 14px;font-size:.9rem;outline:none}
+.srow input:focus{border-color:#4f8ef7}
+.srow input::placeholder{color:#64748b}
+.btn{background:linear-gradient(135deg,#4f8ef7,#7c3aed);color:#fff;border:none;border-radius:10px;
+  padding:10px 22px;font-size:.88rem;font-weight:700;cursor:pointer;white-space:nowrap}
+.btn:hover{opacity:.85}
+.btn2{background:#1e2436;color:#e2e8f0;border:1.5px solid #2a3050;border-radius:10px;
+  padding:9px 16px;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn2:hover{border-color:#4f8ef7;color:#4f8ef7}
+
+/* results */
+#res{display:none}
+.rh{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.rh h2{font-size:1rem;font-weight:700}
+.devlist{display:flex;flex-direction:column;gap:14px}
+.dev{background:#161b27;border:1px solid #2a3050;border-radius:12px;overflow:hidden}
+.dev-head{background:#1e2436;padding:12px 18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-bottom:1px solid #2a3050}
+.dev-name{font-size:1rem;font-weight:700}
+.tag{display:inline-block;font-size:.7rem;font-weight:700;padding:2px 9px;border-radius:20px}
+.tag-ok{background:rgba(34,197,94,.12);color:#22c55e}
+.tag-no{background:rgba(239,68,68,.12);color:#ef4444}
+.tag-usr{background:rgba(56,189,248,.12);color:#38bdf8}
+.dev-body{display:flex;flex-wrap:wrap;justify-content:center}
+.sec{flex:0 0 calc(33.333% - 1px);min-width:200px;padding:18px 22px;border-right:1px solid #2a3050;border-bottom:1px solid #2a3050;box-sizing:border-box}
+.sec:nth-child(3n){border-right:none}
+@media(max-width:800px){.sec{flex:0 0 50%}.sec:nth-child(3n){border-right:1px solid #2a3050}.sec:nth-child(2n){border-right:none}}
+@media(max-width:480px){.sec{flex:0 0 100%;border-right:none}}
+.sec{padding:14px 18px;border-right:1px solid #2a3050;border-bottom:1px solid #2a3050}
+.sec-title{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#64748b;
+  margin-bottom:10px;display:flex;align-items:center;gap:5px}
+.dot{width:7px;height:7px;border-radius:50%}
+.row{display:flex;justify-content:space-between;align-items:flex-start;gap:6px;margin-bottom:6px}
+.row:last-child{margin-bottom:0}
+.lbl{color:#64748b;font-size:.75rem;flex-shrink:0}
+.val{font-size:.79rem;font-weight:500;text-align:right;word-break:break-word;max-width:60%}
+.val.na{color:#64748b;font-style:italic;font-weight:400}
+.badge{display:inline-block;font-size:.72rem;font-weight:700;padding:2px 9px;border-radius:20px}
+.bg{background:rgba(34,197,94,.13);color:#22c55e}
+.by{background:rgba(245,158,11,.13);color:#f59e0b}
+.br{background:rgba(239,68,68,.13);color:#ef4444}
+.bb{background:rgba(56,189,248,.13);color:#38bdf8}
+.bx{background:rgba(100,116,139,.13);color:#64748b}
+.nobd{font-size:.63rem;color:#ef4444;margin-left:3px}
+.patch-pill{display:inline-flex;align-items:center;gap:5px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:8px;padding:3px 9px;font-size:.78rem;font-weight:600;color:#f59e0b}
+.patch-kb{display:inline-block;background:rgba(100,116,139,.15);border:1px solid #2a3050;border-radius:6px;padding:2px 8px;font-size:.74rem;font-weight:600;color:#94a3b8;font-family:monospace}
+.patch-kb-row{margin-top:5px;text-align:right}
+.btn-png{margin-left:auto;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.25);color:#38bdf8;border-radius:7px;padding:4px 11px;font-size:.72rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px;transition:background .15s;white-space:nowrap}
+.btn-png:hover{background:rgba(56,189,248,.2)}
+.btn-png.loading{opacity:.6;pointer-events:none}
+
+/* modal */
+#modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;
+  align-items:center;justify-content:center}
+#modal.on{display:flex}
+.mbox{background:#161b27;border:1px solid #2a3050;border-radius:12px;padding:24px;
+  max-width:480px;width:90%;max-height:80vh;overflow-y:auto}
+.mbox h3{font-weight:700;margin-bottom:4px}
+.mbox p{color:#64748b;font-size:.8rem;margin-bottom:16px}
+.mrow{margin-bottom:12px}
+.mrow label{display:block;font-size:.77rem;color:#64748b;margin-bottom:4px}
+.mrow select{width:100%;background:#1e2436;border:1px solid #2a3050;color:#e2e8f0;
+  border-radius:8px;padding:7px 10px;font-size:.82rem;outline:none}
+.mrow select:focus{border-color:#4f8ef7}
+.mact{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+
+/* toast */
+#toast{position:fixed;bottom:20px;right:20px;background:#1e2436;border:1px solid #2a3050;
+  border-radius:10px;padding:10px 18px;font-size:.83rem;box-shadow:0 4px 20px rgba(0,0,0,.5);
+  opacity:0;pointer-events:none;transition:opacity .3s;max-width:320px;z-index:999}
+#toast.on{opacity:1}
+#toast.ok{border-color:#22c55e;color:#22c55e}
+#toast.er{border-color:#ef4444;color:#ef4444}
+#toast.inf{border-color:#4f8ef7;color:#4f8ef7}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+<div class="page-wrap">
+
+<h1>&#128421; IT Asset Dashboard</h1>
+<p class="sub">Carga tus 4 bases de datos y consulta informacion por equipo o usuario.</p>
+
+<!-- UPLOAD GRID -->
+<div class="grid">
+
+  <!-- MACHINES -->
+  <div class="card m" id="card-m"
+       ondragover="dragOver(event,'m')" ondragleave="dragLeave('m')" ondrop="onDrop(event,'m')">
+    <div class="card-icon">&#128421;</div>
+    <div class="card-title">Listado de Maquinas</div>
+    <label class="up-btn" for="inp-m">&#128194; Seleccionar archivo</label>
+    <input type="file" id="inp-m" accept=".xlsx,.xls,.csv"
+           style="position:absolute;left:-9999px;opacity:0;width:1px;height:1px"
+           onchange="handleFile('m', this)">
+    <div class="file-strip" id="strip-m">
+      <span class="fn" id="fn-m"></span>
+      <span class="fr" id="fr-m"></span>
+      <button class="fx" onclick="removeFile('m')">&#10005;</button>
+    </div>
+    <div class="card-err" id="err-m"></div>
+  </div>
+
+  <!-- PATCHES -->
+  <div class="card p" id="card-p"
+       ondragover="dragOver(event,'p')" ondragleave="dragLeave('p')" ondrop="onDrop(event,'p')">
+    <div class="card-icon">&#128274;</div>
+    <div class="card-title">Parches de Seguridad</div>
+    <label class="up-btn" for="inp-p">&#128194; Seleccionar archivo</label>
+    <input type="file" id="inp-p" accept=".xlsx,.xls,.csv"
+           style="position:absolute;left:-9999px;opacity:0;width:1px;height:1px"
+           onchange="handleFile('p', this)">
+    <div class="file-strip" id="strip-p">
+      <span class="fn" id="fn-p"></span>
+      <span class="fr" id="fr-p"></span>
+      <button class="fx" onclick="removeFile('p')">&#10005;</button>
+    </div>
+    <div class="card-err" id="err-p"></div>
+  </div>
+
+  <!-- ANTIVIRUS -->
+  <div class="card a" id="card-a"
+       ondragover="dragOver(event,'a')" ondragleave="dragLeave('a')" ondrop="onDrop(event,'a')">
+    <div class="card-icon">&#128737;</div>
+    <div class="card-title">Antivirus</div>
+    <label class="up-btn" for="inp-a">&#128194; Seleccionar archivo</label>
+    <input type="file" id="inp-a" accept=".xlsx,.xls,.csv"
+           style="position:absolute;left:-9999px;opacity:0;width:1px;height:1px"
+           onchange="handleFile('a', this)">
+    <div class="file-strip" id="strip-a">
+      <span class="fn" id="fn-a"></span>
+      <span class="fr" id="fr-a"></span>
+      <button class="fx" onclick="removeFile('a')">&#10005;</button>
+    </div>
+    <div class="card-err" id="err-a"></div>
+  </div>
+
+  <!-- BITLOCKER -->
+  <div class="card b" id="card-b"
+       ondragover="dragOver(event,'b')" ondragleave="dragLeave('b')" ondrop="onDrop(event,'b')">
+    <div class="card-icon">&#128272;</div>
+    <div class="card-title">BitLocker</div>
+    <label class="up-btn" for="inp-b">&#128194; Seleccionar archivo</label>
+    <input type="file" id="inp-b" accept=".xlsx,.xls,.csv"
+           style="position:absolute;left:-9999px;opacity:0;width:1px;height:1px"
+           onchange="handleFile('b', this)">
+    <div class="file-strip" id="strip-b">
+      <span class="fn" id="fn-b"></span>
+      <span class="fr" id="fr-b"></span>
+      <button class="fx" onclick="removeFile('b')">&#10005;</button>
+    </div>
+    <div class="card-err" id="err-b"></div>
+  </div>
+
+
+  <div class="card f" id="card-f"
+       ondragover="dragOver(event,'f')" ondragleave="dragLeave('f')" ondrop="onDrop(event,'f')">
+    <div class="card-icon">&#128293;</div>
+    <div class="card-title">Firewall</div>
+    <label class="up-btn" for="inp-f">&#128194; Seleccionar archivo</label>
+    <input type="file" id="inp-f" accept=".xlsx,.xls,.csv"
+           style="position:absolute;left:-9999px;opacity:0;width:1px;height:1px"
+           onchange="handleFile('f', this)">
+    <div class="file-strip" id="strip-f">
+      <span class="fn" id="fn-f"></span>
+      <span class="fr" id="fr-f"></span>
+      <button class="fx" onclick="removeFile('f')">&#10005;</button>
+    </div>
+    <div class="card-err" id="err-f"></div>
+  </div>
+
+  <div class="card x" id="card-x"
+       ondragover="dragOver(event,'x')" ondragleave="dragLeave('x')" ondrop="onDrop(event,'x')">
+    <div class="card-icon">&#128737;</div>
+    <div class="card-title">Admin Permisos</div>
+    <label class="up-btn" for="inp-x">&#128194; Seleccionar archivo</label>
+    <input type="file" id="inp-x" accept=".xlsx,.xls,.csv"
+           style="position:absolute;left:-9999px;opacity:0;width:1px;height:1px"
+           onchange="handleFile('x', this)">
+    <div class="file-strip" id="strip-x">
+      <span class="fn" id="fn-x"></span>
+      <span class="fr" id="fr-x"></span>
+      <button class="fx" onclick="removeFile('x')">&#10005;</button>
+    </div>
+    <div class="card-err" id="err-x"></div>
+  </div>
+</div>
+
+<!-- SEARCH -->
+<div class="search-box">
+  <h2>&#128270; Buscar equipo</h2>
+  <p class="search-hint">Busca por <strong>Computer Name</strong> (ej: PC-LAB01) o <strong>usuario</strong> (ej: antonio.arredondo). Separa multiples con coma.</p>
+  <div class="srow">
+    <input type="text" id="sinput" placeholder="Computer Name o usuario..." onkeydown="if(event.key==='Enter')doSearch()">
+    <button class="btn" onclick="doSearch()">Buscar</button>
+    <button class="btn2" onclick="openModal()">&#9881; Columnas</button>
+    <button class="btn2" id="expbtn" style="display:none" onclick="doExport()">&#8595; Exportar</button>
+  </div>
+</div>
+
+<!-- RESULTS -->
+<div id="res">
+  <div class="rh">
+    <h2 id="rtitle">Resultados</h2>
+  </div>
+  <div class="devlist" id="devlist"></div>
+</div>
+
+<!-- MODAL -->
+<div id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="mbox">
+    <h3>&#9881; Mapeo de columnas</h3>
+    <p>Asigna que columna de tus archivos corresponde a cada campo si los nombres son distintos.</p>
+    <div id="mfields"></div>
+    <div class="mact">
+      <button class="btn2" onclick="closeModal()">Cancelar</button>
+      <button class="btn" onclick="saveModal()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── GLOBAL STATE ─────────────────────────────────────────────
+var DB = { m: null, p: null, a: null, b: null, f: null, x: null };
+
+var CM = {
+  mc: "Computer Name",  mu: "Logged On User",
+  ms: "Last Scan",      mb: "Last Boot",
+  md: "Domain",         mo: "OS",         msp: "Service Pack",
+  pc: "Computer Name",  pColD: null,
+  pi: "Installed",      ps: "Status",
+  ac: "Computer Name",  ah: "Health",     alu: "Last Update",
+  bc: "Computer Name",  be: "Encryption Status", bls: "Last Successful Asset Scan",
+  fc: "Computer Name",  fn: "Firewall Name", fh: "Domain Profile Status",
+  xg: "Group Members"
+};
+var MESES_ES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+
+var LAST = [];
+
+// ── DRAG & DROP ───────────────────────────────────────────────
+function dragOver(e, key) {
+  e.preventDefault();
+  document.getElementById("card-" + key).classList.add("drag");
+}
+function dragLeave(key) {
+  document.getElementById("card-" + key).classList.remove("drag");
+}
+function onDrop(e, key) {
+  e.preventDefault();
+  document.getElementById("card-" + key).classList.remove("drag");
+  var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) readFile(key, f);
+}
+
+// ── FILE INPUT CHANGE ─────────────────────────────────────────
+function handleFile(key, inp) {
+  var f = inp.files && inp.files[0];
+  if (f) readFile(key, f);
+  inp.value = ""; // allow re-select same file
+}
+
+// ── READ FILE (ArrayBuffer - most reliable with SheetJS) ──────
+function readFile(key, file) {
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var data = e.target.result;
+      var wb = XLSX.read(data, { type: "array", cellDates: true, raw: false });
+      if (!wb.SheetNames || !wb.SheetNames.length) throw new Error("No se encontraron hojas.");
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      var rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+      if (!rows.length) { toast("El archivo esta vacio.", "inf"); return; }
+      DB[key] = rows;
+      var hdrs = Object.keys(rows[0]);
+      autoDetect(key, hdrs);
+      if (key === "p") { CM.pc = hdrs.length > 2 ? hdrs[2] : hdrs[0]; CM.pColD = hdrs.length > 3 ? hdrs[3] : hdrs[0]; }
+      if (key === "a") { CM.ac = hdrs[0]||CM.ac; CM.ah = hdrs[9]||hdrs[hdrs.length-1]||CM.ah; CM.alu = hdrs[5]||CM.alu; }
+      if (key === "f") { CM.fh = hdrs[7]||CM.fh; }
+      if (key === "x") { CM.xg = hdrs[3]||CM.xg; }
+      // update card UI
+      document.getElementById("card-" + key).classList.add("loaded");
+      document.getElementById("fn-" + key).textContent = file.name;
+      document.getElementById("fr-" + key).textContent = rows.length + " filas";
+      document.getElementById("strip-" + key).className = "file-strip on";
+      document.getElementById("err-" + key).className = "card-err";
+      toast("Cargado: " + file.name + " (" + rows.length + " filas)", "ok");
+    } catch(err) {
+      document.getElementById("err-" + key).textContent = "Error: " + err.message;
+      document.getElementById("err-" + key).className = "card-err on";
+      toast("Error al leer archivo: " + err.message, "er");
+    }
+  };
+  reader.onerror = function() { toast("No se pudo leer el archivo.", "er"); };
+  reader.readAsArrayBuffer(file);
+}
+
+function removeFile(key) {
+  DB[key] = null;
+  document.getElementById("card-" + key).classList.remove("loaded");
+  document.getElementById("strip-" + key).className = "file-strip";
+  document.getElementById("err-" + key).className = "card-err";
+}
+
+// ── AUTO-DETECT COLUMNS ───────────────────────────────────────
+function n(s) { return s.toLowerCase().replace(/[\s_\-]/g, ""); }
+
+function autoDetect(key, headers) {
+  for (var i = 0; i < headers.length; i++) {
+    var h = headers[i], l = n(h);
+    if (key === "m") {
+      if (l === "computername" || l === "hostname") CM.mc = h;
+      else if (l.indexOf("loggedon") > -1 || l === "user" || l === "username" || l.indexOf("lastuser") > -1) CM.mu = h;
+      else if (l.indexOf("lastscan") > -1 || (l.indexOf("scan") > -1 && l.indexOf("last") > -1)) CM.ms = h;
+      else if (l.indexOf("lastboot") > -1 || l.indexOf("boot") > -1) CM.mb = h;
+      else if (l === "domain" || l.indexOf("domain") > -1) CM.md = h;
+      else if (l === "os" || l.indexOf("operatingsystem") > -1) CM.mo = h;
+      else if (l.indexOf("servicepack") > -1 || l === "sp") CM.msp = h;
+    } else if (key === "p") {
+      if (l.indexOf("installed") > -1 || l.indexOf("installdate") > -1) CM.pi = h;
+      else if (l === "status" || l === "state") CM.ps = h;
+    } else if (key === "a") {
+      if (l === "computername" || l === "hostname") CM.ac = h;
+      else if (l === "health" || l.indexOf("health") > -1) CM.ah = h;
+      else if (l.indexOf("lastupdate") > -1 || l.indexOf("last update") > -1) CM.alu = h;
+    } else if (key === "b") {
+      if (l === "computername" || l === "hostname" || l === "computer" || l === "name" || l === "device") CM.bc = h;
+      else if (l.indexOf("encryption") > -1 || l.indexOf("bitlocker") > -1 || l.indexOf("protectionstatus") > -1) CM.be = h;
+      else if (l.indexOf("lastsuccessful") > -1 || l.indexOf("assetscan") > -1 || l.indexOf("lastscan") > -1) CM.bls = h;
+    } else if (key === "f") {
+      if (l === "computername" || l === "hostname" || l === "computer" || l === "name") CM.fc = h;
+      else if (l.indexOf("firewallname") > -1 || l.indexOf("firewall") > -1) CM.fn = h;
+      else if (l.indexOf("domainprofile") > -1 || l.indexOf("profilestatus") > -1) CM.fh = h;
+    } else if (key === "x") {
+      if (l.indexOf("groupmember") > -1 || l.indexOf("members") > -1 || l === "admins") CM.xg = h;
+    }
+  }
+}
+
+// ── LOOKUP HELPERS ────────────────────────────────────────────
+function findOne(data, col, val) {
+  if (!data) return null;
+  var s = val.toLowerCase().trim();
+  for (var i = 0; i < data.length; i++) {
+    if ((data[i][col] || "").toString().toLowerCase().trim() === s) return data[i];
+  }
+  return null;
+}
+function findMany(data, col, val) {
+  if (!data) return [];
+  var s = val.toLowerCase().trim(), out = [];
+  for (var i = 0; i < data.length; i++) {
+    if ((data[i][col] || "").toString().toLowerCase().trim() === s) out.push(data[i]);
+  }
+  return out;
+}
+function gv(row, col) {
+  if (!row) return null;
+  if (row[col] !== undefined && row[col] !== "") return row[col];
+  var keys = Object.keys(row);
+  for (var i = 0; i < keys.length; i++) {
+    if (keys[i].toLowerCase().trim() === col.toLowerCase().trim()) return row[keys[i]];
+  }
+  return null;
+}
+function pd(v) {
+  if (!v || v === "") return null;
+  if (v instanceof Date) return v;
+  if (typeof v === "number") {
+    try {
+      var x = XLSX.SSF.parse_date_code(v);
+      if (x) return new Date(x.y, x.m - 1, x.d, x.H || 0, x.M || 0, x.S || 0);
+    } catch(e2) {}
+  }
+  var d = new Date(v);
+  return isNaN(d.getTime()) ? null : d;
+}
+function fd(v) {
+  var d = pd(v);
+  if (!d) return v ? v.toString() : null;
+  return d.toLocaleDateString("es-MX", { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+function isUser(t) {
+  return t.indexOf(".") > -1 && t.indexOf(" ") === -1 && isNaN(t.charAt(0));
+}
+function userToCN(u) {
+  if (!DB.m) return [];
+  var s = u.toLowerCase().trim(), found = [];
+  for (var i = 0; i < DB.m.length; i++) {
+    var raw = (gv(DB.m[i], CM.mu) || "").toString().toLowerCase().trim();
+    var bare = raw.indexOf("\\") > -1 ? raw.split("\\").pop() : raw;
+    if (bare === s || raw === s) {
+      var cn = gv(DB.m[i], CM.mc);
+      if (cn) {
+        var cnStr = cn.toString();
+        var dup = false;
+        for (var j = 0; j < found.length; j++) { if (found[j] === cnStr) { dup = true; break; } }
+        if (!dup) found.push(cnStr);
+      }
+    }
+  }
+  return found;
+}
+function extractPatchDate(t){
+  t=String(t);var year=null,month=null;
+  var m1=t.match(/(20\d{2})[-\/](0?[1-9]|1[0-2])/);
+  if(m1){year=parseInt(m1[1],10);month=parseInt(m1[2],10);}
+  if(!year){var EN=["january","february","march","april","may","june","july","august","september","october","november","december"],tl=t.toLowerCase();for(var i=0;i<12;i++){var re=new RegExp(EN[i]+"\\s+(20\\d{2})"),mx=tl.match(re);if(mx){year=parseInt(mx[1],10);month=i+1;break;}}}
+  if(!year){var ES=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"],tl2=t.toLowerCase();for(var i=0;i<12;i++){var re2=new RegExp(ES[i]+"\\s+(20\\d{2})"),mx2=tl2.match(re2);if(mx2){year=parseInt(mx2[1],10);month=i+1;break;}}}
+  if(year&&month)return{year:year,month:month,text:MESES_ES[month-1]+" "+year};
+  return null;
+}
+function extractKB(t){var m=String(t).match(/KB\d{6,8}/i);return m?m[0].toUpperCase():null;}
+function getPatchInfo(cn){
+  if(!DB.p||!CM.pColD)return null;
+  var row=findOne(DB.p,CM.pc,cn);if(!row)return null;
+  var title=gv(row,CM.pColD)||"";
+  return{title:title,dateInfo:title?extractPatchDate(title):null,kb:title?extractKB(title):null,installDate:gv(row,CM.pi)};
+}
+
+// ── SEARCH ────────────────────────────────────────────────────
+function doSearch() {
+  var raw = document.getElementById("sinput").value;
+  var terms = raw.split(/[\n,]+/);
+  var clean = [];
+  for (var i = 0; i < terms.length; i++) {
+    var t = terms[i].trim();
+    if (t) clean.push(t);
+  }
+  if (!clean.length) { toast("Escribe al menos un termino.", "er"); return; }
+  if (!DB.m && !DB.p && !DB.a && !DB.b) { toast("Carga al menos una base de datos.", "er"); return; }
+
+  LAST = [];
+  for(var i=0;i<clean.length;i++){
+    var term=clean[i];
+    if(isUser(term)){
+      var cns=userToCN(term);
+      if(!cns.length){LAST.push({cn:"—",term:term,type:"user",found:false,u:null,s:null,bt:null,d:null,o:null,patch:null,ah:null,alu:null,be:null,bls:null,sp:null,ffn:null,ffh:null,xadmin:null});}
+      else{for(var j=0;j<cns.length;j++){var r=buildResult(cns[j]);r.term=term;r.type="user";LAST.push(r);}}
+    } else if(isDigitsOnly(term)){
+      var matched=findByDigits(term.trim());
+      if(!matched.length){LAST.push({cn:term,term:term,type:"cn",found:false,u:null,s:null,bt:null,d:null,o:null,patch:null,ah:null,alu:null,be:null,bls:null,sp:null,ffn:null,ffh:null,xadmin:null});}
+      else{for(var j=0;j<matched.length;j++){var r=buildResult(matched[j]);r.term=term;r.type="cn";LAST.push(r);}}
+    } else{
+      var r=buildResult(term);r.term=term;r.type="cn";LAST.push(r);
+    }
+  }
+  renderResults();
+  document.getElementById("expbtn").style.display = "inline-block";
+}
+
+function checkAdmin(u){
+  if(!DB.x||!u)return null;
+  var s=u.toString().toLowerCase().trim();
+  s=s.indexOf("\\")>-1?s.split("\\").pop():s;
+  for(var i=0;i<DB.x.length;i++){
+    var mem=(gv(DB.x[i],CM.xg)||"").toString().toLowerCase();
+    if(!mem)continue;
+    var parts=mem.split(/[;,|\n\r]+/);
+    for(var j=0;j<parts.length;j++){
+      var p=parts[j].trim();
+      p=p.indexOf("\\")>-1?p.split("\\").pop():p;
+      if(p===s||(p.length>3&&(p.indexOf(s)>-1||s.indexOf(p)>-1)))return true;
+    }
+  }
+  return false;
+}
+function buildResult(cn){
+  var mr=findOne(DB.m,CM.mc,cn),ar=findOne(DB.a,CM.ac,cn),br=findOne(DB.b,CM.bc,cn),fr=findOne(DB.f,CM.fc,cn),patch=getPatchInfo(cn);
+  var u=mr?gv(mr,CM.mu):null;
+  return{cn:cn,found:!!(mr||ar||br||fr||patch),
+    u:u,s:mr?gv(mr,CM.ms):null,bt:mr?gv(mr,CM.mb):null,d:mr?gv(mr,CM.md):null,o:mr?gv(mr,CM.mo):null,sp:mr?gv(mr,CM.msp):null,
+    patch:patch,ah:ar?gv(ar,CM.ah):null,alu:ar?gv(ar,CM.alu):null,
+    be:br?gv(br,CM.be):null,bls:br?gv(br,CM.bls):null,
+    ffn:fr?gv(fr,CM.fn):null,ffh:fr?gv(fr,CM.fh):null,
+    xadmin:checkAdmin(u)};
+}
+
+// ── RENDER ────────────────────────────────────────────────────
+function esc(s) {
+  return String(s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function vH(v, isDate) {
+  if (v === null || v === undefined || v === "")
+    return "<span class='val na'>&#8212;</span>";
+  var txt = isDate ? (fd(v) || esc(String(v))) : esc(String(v));
+  return "<span class='val'>" + txt + "</span>";
+}
+function bH(v, type) {
+  if (v === null || v === undefined || v === "")
+    return "<span class='badge bx'>Sin datos</span>";
+  var s = String(v).toLowerCase(), cls = "bb";
+  if (type === "h") {
+    if (s.indexOf("healthy") > -1 || s === "ok" || s === "good" || s === "1") cls = "bg";
+    else if (s.indexOf("warn") > -1 || s.indexOf("partial") > -1) cls = "by";
+    else if (s.indexOf("error") > -1 || s.indexOf("fail") > -1 || s === "0") cls = "br";
+  }
+  if (type === "e") {
+    if (s.indexOf("encrypt") > -1 || s.indexOf("protect") > -1 || s === "on" || s === "1") cls = "bg";
+    else if (s.indexOf("partial") > -1 || s.indexOf("progress") > -1) cls = "by";
+    else if (s.indexOf("decrypt") > -1 || s === "off" || s === "none" || s === "0") cls = "br";
+  }
+  if (type === "fw") {
+    if (s === "on" || s.indexOf("enabl") > -1 || s.indexOf("activ") > -1) cls = "bg";
+    else if (s === "off" || s.indexOf("disabl") > -1 || s.indexOf("inactiv") > -1) cls = "br";
+    else cls = "by";
+  }
+  return "<span class='badge " + cls + "'>" + esc(String(v)) + "</span>";
+}
+function nobd(loaded) {
+  return loaded ? "" : "<span class='nobd'>(BD no cargada)</span>";
+}
+
+function patchHTML(p){
+  if(!p||!p.title)return "<div class='row'><span class='lbl'>Parche</span><span class='val na'>&#8212;</span></div>";
+  var h="";
+  if(p.dateInfo){
+    h+="<div class='row'><span class='lbl'>Ultimo parche</span><span class='patch-pill'>&#128197; "+esc(p.dateInfo.text)+"</span></div>";
+    if(p.kb)h+="<div class='patch-kb-row'><span class='patch-kb'>"+esc(p.kb)+"</span></div>";
+  } else {
+    h+="<div class='row'><span class='lbl'>Parche</span><span class='val'>"+esc(String(p.title).substring(0,50))+"</span></div>";
+  }
+  if(p.installDate)h+="<div class='row'><span class='lbl'>Instalado</span>"+vH(p.installDate,true)+"</div>";
+  return h;
+}
+function adminHTML(r){
+  if(!DB.x)return "<span class='val na'>Sin archivo</span>";
+  if(!r.u)return "<span class='val na'>Sin usuario logueado</span>";
+  if(r.xadmin===null)return "<span class='badge bx'>Sin datos</span>";
+  var urow="<div class='row'><span class='lbl'>Usuario</span><span class='val'>"+esc(r.u)+"</span></div>";
+  if(r.xadmin===true)return "<div class='row'><span class='lbl'>Acceso</span><span class='badge br'>&#9888; Admin local</span></div>"+urow;
+  return "<div class='row'><span class='lbl'>Acceso</span><span class='badge bg'>Sin privilegios</span></div>"+urow;
+}
+function findByDigits(q){var src=[{d:DB.m,c:CM.mc},{d:DB.p,c:CM.pc},{d:DB.a,c:CM.ac},{d:DB.b,c:CM.bc},{d:DB.f,c:CM.fc}],seen={},res=[];for(var s=0;s<src.length;s++){var dt=src[s].d,col=src[s].c;if(!dt)continue;for(var i=0;i<dt.length;i++){var cn=(dt[i][col]||"").toString().trim();if(!cn||seen[cn.toLowerCase()])continue;if(cn.toLowerCase().indexOf(q)>-1){seen[cn.toLowerCase()]=true;res.push(cn);}}}return res;}
+function isDigitsOnly(t){return /^\d+$/.test(t.trim());}
+
+function downloadPNG(btn) {
+  var card = btn.closest(".dev");
+  var name = (card.querySelector(".dev-name")||{}).textContent || "equipo";
+  name = name.trim().replace(/[^a-zA-Z0-9_\-]/g, "_");
+  btn.classList.add("loading");
+  btn.innerHTML = "&#8595; ...";
+  btn.style.visibility = "hidden";
+  html2canvas(card, { backgroundColor: "#161b27", scale: 2, useCORS: true, logging: false })
+  .then(function(canvas) {
+    btn.style.visibility = "";
+    btn.classList.remove("loading");
+    btn.innerHTML = "&#8595; PNG";
+    var a = document.createElement("a");
+    a.download = name + ".png";
+    a.href = canvas.toDataURL("image/png");
+    a.click();
+  }).catch(function() {
+    btn.style.visibility = "";
+    btn.classList.remove("loading");
+    btn.innerHTML = "&#8595; PNG";
+  });
+}
+
+function renderResults() {
+  document.getElementById("res").style.display = "block";
+  document.getElementById("rtitle").textContent =
+    "Resultados — " + LAST.length + " equipo" + (LAST.length !== 1 ? "s" : "");
+  var list = document.getElementById("devlist");
+  list.innerHTML = "";
+  for (var i = 0; i < LAST.length; i++) {
+    var r = LAST[i];
+    var sBadge = r.found
+      ? "<span class='tag tag-ok'>&#10003; Encontrado</span>"
+      : "<span class='tag tag-no'>&#10007; No encontrado</span>";
+    var uBadge = r.type === "user"
+      ? "<span class='tag tag-usr'>&#128100; " + esc(r.term) + "</span>"
+      : "";
+    var div = document.createElement("div");
+    div.className = "dev";
+    div.innerHTML =
+      "<div class='dev-head'>" +
+        "<span style='font-size:1.3rem'>&#128421;</span>" +
+        "<span class='dev-name'>" + esc(r.cn) + "</span>" +
+        sBadge + uBadge +
+        "<button class='btn-png' onclick='downloadPNG(this)'>&#8595; PNG</button>" +
+      "</div>" +
+      "<div class='dev-body'>" +
+        "<div class='sec'>" +
+          "<div class='sec-title'><span class='dot' style='background:#4f8ef7'></span>Equipo" + nobd(!!DB.m) + "</div>" +
+          "<div class='row'><span class='lbl'>Usuario logueado</span>" + vH(r.u) + "</div>" +
+          "<div class='row'><span class='lbl'>Ultimo scan</span>" + vH(r.s, true) + "</div>" +
+          "<div class='row'><span class='lbl'>Ultimo boot</span>" + vH(r.bt, true) + "</div>" +
+          "<div class='row'><span class='lbl'>Dominio</span>" + vH(r.d) + "</div>" +
+          "<div class='row'><span class='lbl'>Sistema operativo</span>" + vH(r.o) + "</div>" +
+          "<div class='row'><span class='lbl'>Service Pack</span>" + vH(r.sp) + "</div>" +
+        "</div>" +
+        "<div class='sec'>" +
+          "<div class='sec-title'><span class='dot' style='background:#f59e0b'></span>Parche de Seguridad" + nobd(!!DB.p) + "</div>" +
+          patchHTML(r.patch) +
+        "</div>" +
+        "<div class='sec'>" +
+          "<div class='sec-title'><span class='dot' style='background:#ef4444'></span>Firewall" + nobd(!!DB.f) + "</div>" +
+          "<div class='row'><span class='lbl'>Nombre de firewall</span>" + vH(r.ffn) + "</div>" +
+          "<div class='row'><span class='lbl'>Perfil activo</span>" + bH(r.ffh, "fw") + "</div>" +
+        "</div>" +
+        "<div class='sec'>" +
+          "<div class='sec-title'><span class='dot' style='background:#22c55e'></span>Antivirus" + nobd(!!DB.a) + "</div>" +
+          "<div class='row'><span class='lbl'>Salud del agente</span>" + bH(r.ah, "h") + "</div>" +
+          "<div class='row'><span class='lbl'>Ultima actualización</span>" + vH(r.alu, true) + "</div>" +
+        "</div>" +
+        "<div class='sec'>" +
+          "<div class='sec-title'><span class='dot' style='background:#a855f7'></span>BitLocker" + nobd(!!DB.b) + "</div>" +
+          "<div class='row'><span class='lbl'>Estado de encriptación</span>" + bH(r.be, "e") + "</div>" +
+          "<div class='row'><span class='lbl'>Ultimo scan inventario</span>" + vH(r.bls, true) + "</div>" +
+        "</div>" +
+        "<div class='sec'>" +
+          "<div class='sec-title'><span class='dot' style='background:#f59e0b'></span>Admin Local" + nobd(!!DB.x) + "</div>" +
+          adminHTML(r) +
+        "</div>" +
+      "</div>";
+    list.appendChild(div);
+  }
+  document.getElementById("res").scrollIntoView({ behavior: "smooth" });
+}
+
+// ── EXPORT ────────────────────────────────────────────────────
+function doExport() {
+  if (!LAST.length) { toast("Sin resultados.", "er"); return; }
+  var rows = [];
+  for (var i = 0; i < LAST.length; i++) {
+    var r = LAST[i];
+    rows.push({
+      "Busqueda": r.term,
+      "Tipo": r.type === "user" ? "Usuario" : "Computer Name",
+      "Computer Name": r.cn,
+      "Encontrado": r.found ? "Si" : "No",
+      "Usuario Logueado": r.u || "",
+      "Ultimo Scan": r.s || "",
+      "Ultimo Boot": r.bt || "",
+      "Dominio": r.d || "",
+      "OS": r.o || "",
+      "Ultimo Parche": r.patch&&r.patch.dateInfo?r.patch.dateInfo.text:(r.patch?String(r.patch.title||""):""),
+      "Fecha Parche": r.patch&&r.patch.installDate?String(r.patch.installDate):"",
+      "Firewall": r.ffn||"", "Estado Firewall": r.ffh||"",
+      "Admin Local": r.xadmin===true?"Si":r.xadmin===false?"No":"",
+      "Salud del agente": r.ah || "",
+      "Estado de encriptacion": r.be || ""
+    });
+  }
+  var ws = XLSX.utils.json_to_sheet(rows);
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Resultados");
+  XLSX.writeFile(wb, "it_dashboard_" + new Date().toISOString().slice(0, 10) + ".xlsx");
+  toast("Exportado correctamente.", "ok");
+}
+
+// ── COLUMN MAPPER ─────────────────────────────────────────────
+var MDEFS = [
+  { k: "mc", l: "Maquinas - Computer Name" },
+  { k: "mu", l: "Maquinas - Usuario logueado" },
+  { k: "ms", l: "Maquinas - Ultimo scan" },
+  { k: "mb", l: "Maquinas - Ultimo boot" },
+  { k: "md", l: "Maquinas - Dominio" },
+  { k: "mo", l: "Maquinas - OS" },
+  { k: "pc", l: "Parches - Computer Name" },
+  { k: "pColD", l: "Parches - Col D (titulo/KB del parche)" },
+  { k: "pi", l: "Parches - Fecha instalado" },
+  { k: "ps", l: "Parches - Status" },
+  { k: "ac", l: "Antivirus - Computer Name" },
+  { k: "ah", l: "Antivirus - Health" },
+  { k: "bc", l: "BitLocker - Computer Name" },
+  { k: "be", l: "BitLocker - Estado de encriptacion" },
+  { k: "fc", l: "Firewall - Computer Name" },
+  { k: "fn", l: "Firewall - Nombre de firewall" },
+  { k: "fh", l: "Firewall - Domain Profile Status" },
+  { k: "xg", l: "Admin Perms - Group Members" }
+];
+function allHeaders() {
+  var out = [];
+  var keys = ["m", "p", "a", "b"];
+  for (var i = 0; i < keys.length; i++) {
+    var d = DB[keys[i]];
+    if (d && d.length) {
+      var ks = Object.keys(d[0]);
+      for (var j = 0; j < ks.length; j++) {
+        var dup = false;
+        for (var k = 0; k < out.length; k++) { if (out[k] === ks[j]) { dup = true; break; } }
+        if (!dup) out.push(ks[j]);
+      }
+    }
+  }
+  return out;
+}
+function openModal() {
+  var hs = allHeaders();
+  if (!hs.length) { toast("Carga al menos un archivo primero.", "inf"); return; }
+  var c = document.getElementById("mfields"); c.innerHTML = "";
+  for (var i = 0; i < MDEFS.length; i++) {
+    var def = MDEFS[i];
+    var opts = "<option value=''>- No mapear -</option>";
+    for (var j = 0; j < hs.length; j++) {
+      opts += "<option value='" + esc(hs[j]) + "'" + (hs[j] === CM[def.k] ? " selected" : "") + ">" + esc(hs[j]) + "</option>";
+    }
+    var div = document.createElement("div"); div.className = "mrow";
+    div.innerHTML = "<label>" + def.l + "</label><select id='ms_" + def.k + "'>" + opts + "</select>";
+    c.appendChild(div);
+  }
+  document.getElementById("modal").className = "on";
+}
+function closeModal() { document.getElementById("modal").className = ""; }
+function saveModal() {
+  for (var i = 0; i < MDEFS.length; i++) {
+    var el = document.getElementById("ms_" + MDEFS[i].k);
+    if (el && el.value) CM[MDEFS[i].k] = el.value;
+  }
+  closeModal(); toast("Mapeo guardado.", "ok");
+}
+
+// ── TOAST ─────────────────────────────────────────────────────
+var TT;
+function toast(msg, cls) {
+  var el = document.getElementById("toast");
+  el.textContent = msg;
+  el.className = "on " + (cls || "");
+  clearTimeout(TT);
+  TT = setTimeout(function() { el.className = ""; }, 3500);
+}
+</script>
+</div>
+</body>
+</html>
