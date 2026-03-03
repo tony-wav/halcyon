@@ -9,7 +9,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0d1117;color:#e2e8f0;font-family:Segoe UI,system-ui,sans-serif;padding:0;min-height:100vh}
 .page-wrap{max-width:1180px;margin:0 auto;padding:32px 28px 80px}
-h1{font-size:1.6rem;font-weight:800;background:linear-gradient(135deg,#4f8ef7,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px}
+h1{font-size:1.6rem;font-weight:800;background:linear-gradient(135deg,#4f8ef7,#7c3aed);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px}
 .sub{color:#64748b;font-size:.85rem;margin-bottom:24px}
 
 /* upload grid */
@@ -125,6 +125,18 @@ h1{font-size:1.6rem;font-weight:800;background:linear-gradient(135deg,#4f8ef7,#7
 #toast.ok{border-color:#22c55e;color:#22c55e}
 #toast.er{border-color:#ef4444;color:#ef4444}
 #toast.inf{border-color:#4f8ef7;color:#4f8ef7}
+
+/* toggle upload panel */
+#toggle-upload-btn{
+  display:inline-flex;align-items:center;gap:6px;
+  background:#1e2436;border:1.5px solid #2a3050;border-radius:10px;
+  color:#4f8ef7;font-size:.82rem;font-weight:600;padding:7px 16px;
+  cursor:pointer;margin-bottom:16px;transition:.2s;
+}
+#toggle-upload-btn:hover{border-color:#4f8ef7;}
+#upload-section{transition:max-height .35s ease, opacity .35s ease;overflow:hidden;}
+#upload-section.hidden-panel{max-height:0!important;opacity:0;margin:0;pointer-events:none;}
+
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
@@ -134,6 +146,8 @@ h1{font-size:1.6rem;font-weight:800;background:linear-gradient(135deg,#4f8ef7,#7
 <h1>&#128421; IT Asset Dashboard</h1>
 <p class="sub">Carga tus 4 bases de datos y consulta informacion por equipo o usuario.</p>
 
+<button id="toggle-upload-btn" onclick="toggleUpload()"><span id="toggle-icon">&#128065;</span> <span id="toggle-label">Ocultar carga de archivos</span></button>
+<div id="upload-section">
 <!-- UPLOAD GRID -->
 <div class="grid">
 
@@ -238,6 +252,7 @@ h1{font-size:1.6rem;font-weight:800;background:linear-gradient(135deg,#4f8ef7,#7
     <div class="card-err" id="err-x"></div>
   </div>
 </div>
+</div>
 
 <!-- SEARCH -->
 <div class="search-box">
@@ -340,10 +355,12 @@ function readFile(key, file) {
       document.getElementById("strip-" + key).className = "file-strip on";
       document.getElementById("err-" + key).className = "card-err";
       toast("Cargado: " + file.name + " (" + rows.length + " filas)", "ok");
+      recalcUploadHeight();
     } catch(err) {
       document.getElementById("err-" + key).textContent = "Error: " + err.message;
       document.getElementById("err-" + key).className = "card-err on";
       toast("Error al leer archivo: " + err.message, "er");
+      recalcUploadHeight();
     }
   };
   reader.onerror = function() { toast("No se pudo leer el archivo.", "er"); };
@@ -355,6 +372,7 @@ function removeFile(key) {
   document.getElementById("card-" + key).classList.remove("loaded");
   document.getElementById("strip-" + key).className = "file-strip";
   document.getElementById("err-" + key).className = "card-err";
+  recalcUploadHeight();
 }
 
 // ── AUTO-DETECT COLUMNS ───────────────────────────────────────
@@ -778,6 +796,36 @@ function toast(msg, cls) {
   clearTimeout(TT);
   TT = setTimeout(function() { el.className = ""; }, 3500);
 }
+
+
+function recalcUploadHeight(){
+  var s = document.getElementById('upload-section');
+  if(s && !s.classList.contains('hidden-panel')){
+    s.style.maxHeight = 'none';
+    var h = s.scrollHeight;
+    s.style.maxHeight = h + 'px';
+  }
+}
+
+function toggleUpload(){
+  const section = document.getElementById('upload-section');
+  const icon = document.getElementById('toggle-icon');
+  const label = document.getElementById('toggle-label');
+  const isHidden = section.classList.toggle('hidden-panel');
+  icon.textContent = isHidden ? '\u{1F4C2}' : '\u{1F441}';
+  label.textContent = isHidden ? 'Mostrar carga de archivos' : 'Ocultar carga de archivos';
+  if(!isHidden){
+    section.style.maxHeight = 'none';
+    var h = section.scrollHeight;
+    section.style.maxHeight = h + 'px';
+  }
+}
+// init max-height for animation
+window.addEventListener('DOMContentLoaded',()=>{
+  const s = document.getElementById('upload-section');
+  s.style.maxHeight = s.scrollHeight + 'px';
+});
+
 </script>
 </div>
 </body>
